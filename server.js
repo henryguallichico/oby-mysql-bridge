@@ -3,37 +3,48 @@ const mysql = require('mysql2');
 const cors = require('cors');
 
 const app = express();
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-// Configuración de conexión usando variables de entorno (para Railway)
-const db = mysql.createPool({
-    host: process.env.DB_HOST || 'dbsignature.cwkcc7shlips.us-east-1.rds.amazonaws.com',
-    user: process.env.DB_USER || 'usr_inconcert',
-    password: process.env.DB_PASSWORD || 'BL$5fvfu$ggMBAQkJsw@D',
-    database: process.env.DB_NAME || 'occ_survey_prod',
-    waitForConnections: true,
-    connectionLimit: 10
+const PORT = process.env.PORT || 8080;
+
+// Configuración de conexión con manejo de errores
+const db = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    connectTimeout: 10000 // 10 segundos de espera
 });
 
-// Endpoint que recibirá los datos de ObyMind
+// Intentar conectar pero sin tumbar el servidor si falla
+db.connect((err) => {
+    if (err) {
+        console.error('ERROR de conexión a MySQL:', err.message);
+    } else {
+        console.log('Conectado a la base de datos MySQL');
+    }
+});
+
 app.post('/webhook-oby', (req, res) => {
+    console.log('Datos recibidos de Oby:', req.body);
     const { nombre, modelo, score, mensaje } = req.body;
 
-    // Llamada a Procedimiento Almacenado
-    const sql = `CALL sp_InsertarInteraccion(?, ?, ?, ?)`;
-    
-    db.query(sql, [nombre, modelo, score, mensaje], (err, result) => {
+    const query = 'CALL sp_InsertarInteraccion(?, ?, ?, ?)';
+    db.query(query, [nombre, modelo, score, mensaje], (err, result) => {
         if (err) {
-            console.error('Error en MySQL:', err);
-            return res.status(500).json({ error: err.message });
+            console.error('Error al insertar:', err.message);
+            return res.status(500).json({ error: 'Error en DB', detalle: err.message });
         }
-        console.log('Lead guardado con éxito');
-        res.status(200).json({ status: 'success', message: 'Datos insertados' });
+        res.status(200).json({ status: 'Lead guardado con éxito' });
     });
 });
 
-const PORT = process.env.PORT || 8080;
+// Ruta de prueba para verificar que el servidor vive
+app.get('/', (req, res) => {
+    res.send('Servidor Puente BYD está ACTIVO');
+});
+
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
+    console.log(`Servidor escuchando en puerto ${PORT}`);
 });
