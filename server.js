@@ -1,50 +1,98 @@
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise'); // Usamos la versión de promesas para consistencia
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-const PORT = process.env.PORT || 8080;
-
-// Configuración de conexión con manejo de errores
-const db = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    connectTimeout: 10000 // 10 segundos de espera
+// Configuración de conexión (Pool de Promesas)
+const db = mysql.createPool({
+    host: process.env.DB_HOST || 'dbsignature.cwkcc7shlips.us-east-1.rds.amazonaws.com',
+    user: process.env.DB_USER || 'usr_inconcert',
+    password: process.env.DB_PASSWORD || 'BL$5fvfu$ggMBAQkJsw@D',
+    database: process.env.DB_NAME || 'occ_survey_prod',
+    waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true
 });
 
-// Intentar conectar pero sin tumbar el servidor si falla
-db.connect((err) => {
-    if (err) {
-        console.error('ERROR de conexión a MySQL:', err.message);
-    } else {
-        console.log('Conectado a la base de datos MySQL');
+// 1. ENDPOINT: INSERTAR INTERACCIÓN (El que ya usas)
+app.post('/webhook-oby', async (req, res) => {
+    const { nombre, modelo, score, mensaje } = req.body;
+    try {
+        const sql = `CALL sp_InsertarInteraccion(?, ?, ?, ?)`;
+        await db.query(sql, [nombre, modelo, score, mensaje]);
+        console.log('Lead guardado con éxito');
+        res.status(200).json({ status: 'success', message: 'Datos insertados' });
+    } catch (err) {
+        console.error('Error en MySQL:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/webhook-oby', (req, res) => {
-    console.log('Datos recibidos de Oby:', req.body);
-    const { nombre, modelo, score, mensaje } = req.body;
-
-    const query = 'CALL sp_InsertarInteraccion(?, ?, ?, ?)';
-    db.query(query, [nombre, modelo, score, mensaje], (err, result) => {
-        if (err) {
-            console.error('Error al insertar:', err.message);
-            return res.status(500).json({ error: 'Error en DB', detalle: err.message });
+// 2. ENDPOINT: BUSCAR LEAD (Para saber si saludarlo o validarlo)
+app.post('/check-lead', async (req, res) => {
+    const { telefono } = req.body;
+    try {
+        // En MySQL usamos .query() con el pool de promesas
+        const [rows] = await db.query('SELECT * FROM leads WHERE telefono = ? LIMIT 1', [telefono]);
+        if (rows.length > 0) {
+            res.json({ existe: true, datos: rows[0] });
+        } else {
+            res.json({ existe: false });
         }
-        res.status(200).json({ status: 'Lead guardado con éxito' });
-    });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Ruta de prueba para verificar que el servidor vive
-app.get('/', (req, res) => {
-    res.send('Servidor Puente BYD está ACTIVO');
+// 3. ENDPOINT: VALIDAR EXPERIENCIA (Saber si ya pasó por P1)
+// Esto reemplaza la lógica de "Validación Experiencia EV" de tu flujo
+app.post('/check-experience', async (req, res) => {
+    const { telefono } = req.body;
+    try {
+        const [rows] = await db.query(
+            'SELECT estado_validacion FROM leads_postventa WHERE telefono = ? AND modelo_interes = "EV"', 
+            [telefono]
+        );
+        res.json({ 
+            ya_validado: rows.length > 0 && rows[0].estado_validacion === 'completado',
+            detalle: rows[0] || null 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
+// 4. ENDPOINT: OBTENER ASESORES DISPONIBLES
+app.get('/get-asesores', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, nombre, especialidad FROM asesores WHERE activo = 1');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 5. ENDPOINT: OBTENER HISTORIAL (Para que el agente de OBY tenga contexto)
+app.post('/get-history', async (req, res) => {
+    const { telefono } = req.body;
+    try {
+        const [rows] = await db.query(
+            'SELECT mensaje, fecha FROM agent_feedback WHERE telefono = ? ORDER BY fecha DESC LIMIT 5', 
+            [telefono]
+        );
+        res.json({ historial: rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Health Check para Railway
+app.get('/', (req, res) => res.send('Servidor BYD activo'));
+
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor escuchando en puerto ${PORT}`);
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
