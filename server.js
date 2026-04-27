@@ -93,27 +93,29 @@ app.get('/get-asesores', async (req, res) => {
 // Endpoint para consultar catálogo de vehículos
 
 app.get('/consultar-catalogo', async (req, res) => {
-    
-    const { modelo } = req.query; 
+    const { modelo } = req.query;
+    console.log("Buscando modelo:", modelo); // Esto saldrá en Railway
 
     if (!modelo) {
-        return res.status(400).json({ error: "Debes proporcionar un modelo" });
+        return res.status(400).json({ error: "Falta el parámetro modelo" });
     }
 
     try {
-        const [rows] = await pool.query(
-            "SELECT * FROM vehiculos WHERE modelo LIKE ?", 
-            [`%${modelo}%`]
-        );
+        // Usamos LIKE para que si buscan "Dolphin" o "dolphin" funcione igual
+        const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)";
+        const [rows] = await pool.query(query, [`%${modelo}%`]);
+
+        console.log("Resultados encontrados:", rows.length);
 
         if (rows.length > 0) {
             res.json(rows[0]);
         } else {
-            res.status(404).json({ error: "Modelo no encontrado" });
+            res.status(404).json({ error: "No encontramos ese modelo en el sistema" });
         }
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error en el servidor" });
+        // ESTO ES LO MÁS IMPORTANTE: Ver el error real en la consola
+        console.error("DETALLE DEL ERROR MYSQL:", error.message);
+        res.status(500).json({ error: "Error interno", detalle: error.message });
     }
 });
 
