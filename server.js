@@ -1,12 +1,12 @@
 const express = require('express');
-const mysql = require('mysql2/promise'); // Usamos la versión de promesas para consistencia
+const mysql = require('mysql2/promise'); 
 const cors = require('cors');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configuración de conexión (Pool de Promesas)
+// Configuración de conexión
 const db = mysql.createPool({
     host: process.env.DB_HOST || 'dbsignature.cwkcc7shlips.us-east-1.rds.amazonaws.com',
     user: process.env.DB_USER || 'usr_inconcert',
@@ -69,15 +69,26 @@ app.post('/check-experience', async (req, res) => {
 });
 
 // 4. ENDPOINT: OBTENER ASESORES DISPONIBLES
+
 app.get('/get-asesores', async (req, res) => {
     try {
+        console.log("Consultando lista de asesores...");
+        
+       
         const [rows] = await db.query('SELECT id, nombre, especialidad FROM asesores WHERE activo = 1');
-        res.json(rows);
+        
+       
+        res.json(rows || []);
+        
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Error en get-asesores:", error.message);
+        res.status(500).json({ 
+            error: "Error al consultar asesores", 
+            detail: error.message,
+            code: error.code 
+        });
     }
 });
-
 // 5. ENDPOINT: OBTENER HISTORIAL (Para que el agente de OBY tenga contexto)
 app.post('/get-history', async (req, res) => {
     try {
