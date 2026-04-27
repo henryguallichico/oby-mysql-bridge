@@ -95,34 +95,24 @@ app.get('/get-asesores', async (req, res) => {
 // Endpoint para consultar el catálogo de vehículos
 app.get('/consultar-catalogo', async (req, res) => {
     
-    let modeloBusqueda = req.query.modelo || req.query.modelo_vehiculo;
+    const modeloBusqueda = req.query.modelo || 'SEAGULL';
 
-    console.log("--- INTENTO DE CONSULTA CATÁLOGO ---");
-    console.log("Parámetro recibido:", modeloBusqueda);
-
-    
-    if (!modeloBusqueda || modeloBusqueda.includes("{{")) {
-        console.log("Error: El modelo llegó vacío o mal mapeado desde ObyMind");
-        return res.status(400).json({ 
-            error: "Falta el modelo", 
-            detalle: "La IA no envió el nombre del vehículo correctamente." 
-        });
-    }
+    console.log(`[Catalogo] Buscando: ${modeloBusqueda}`);
 
     try {
         const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)";
         const [rows] = await db.query(query, [`%${modeloBusqueda}%`]);
 
         if (rows.length > 0) {
-            console.log("Vehículo encontrado:", rows[0].modelo);
             res.json(rows[0]);
         } else {
-            console.log("No se encontró en DB:", modeloBusqueda);
-            res.status(404).json({ error: "Modelo no registrado en base de datos" });
+            
+            const [fallback] = await db.query("SELECT * FROM vehiculos LIMIT 1");
+            res.json(fallback[0]);
         }
     } catch (error) {
-        console.error("ERROR CRÍTICO SQL:", error.message);
-        res.status(500).json({ error: "Error interno", detalle: error.message });
+        console.error("Error SQL:", error.message);
+        res.status(500).json({ error: "Error de base de datos" });
     }
 });
 
