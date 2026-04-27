@@ -93,14 +93,18 @@ app.get('/get-asesores', async (req, res) => {
 // Endpoint para consultar catálogo de vehículos
 
 app.get('/consultar-catalogo', async (req, res) => {
-    const { modelo } = req.query;
-
+    
+    const modelo = req.query.modelo || req.query.modelo_vehiculo; 
+    
     if (!modelo) {
-        return res.status(400).json({ error: "Falta el parámetro modelo" });
+        return res.status(400).json({ 
+            error: "Falta el modelo",
+            instruccion: "Por favor, envía el parámetro 'modelo' en la URL" 
+        });
     }
 
     try {
-        // Usamos 'db.query' para ser consistentes con tus otros servicios
+        
         const [rows] = await db.query(
             "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)", 
             [`%${modelo}%`]
