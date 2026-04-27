@@ -91,11 +91,13 @@ app.get('/get-asesores', async (req, res) => {
 });
 
 // Endpoint para consultar catálogo de vehículos
+
 app.get('/consultar-catalogo', async (req, res) => {
-    const modelo = req.query.modelo;
+    
+    const { modelo } = req.query; 
 
     if (!modelo) {
-        return res.status(400).json({ error: "Debes proporcionar un modelo de vehículo" });
+        return res.status(400).json({ error: "Debes proporcionar un modelo" });
     }
 
     try {
@@ -105,15 +107,16 @@ app.get('/consultar-catalogo', async (req, res) => {
         );
 
         if (rows.length > 0) {
-            res.json(rows[0]); // Devuelve el primer resultado encontrado
+            res.json(rows[0]);
         } else {
-            res.status(404).json({ error: "Modelo no encontrado en el catálogo" });
+            res.status(404).json({ error: "Modelo no encontrado" });
         }
     } catch (error) {
-        console.error("Error al consultar catálogo:", error);
-        res.status(500).json({ error: "Error interno del servidor" });
+        console.error(error);
+        res.status(500).json({ error: "Error en el servidor" });
     }
 });
+
 // 5. ENDPOINT: OBTENER HISTORIAL (Para que el agente de OBY tenga contexto)
 app.post('/get-history', async (req, res) => {
     try {
