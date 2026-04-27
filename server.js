@@ -75,7 +75,7 @@ app.get('/get-asesores', async (req, res) => {
         console.log("Consultando lista de asesores...");
         
        
-        const [rows] = await db.query('SELECT id, nombre, especialidad FROM asesores WHERE activo = 1');
+        const [rows] = await db.query('SELECT owner_id, nombre FROM asesores WHERE activo = 1');
         
        
         res.json(rows || []);
