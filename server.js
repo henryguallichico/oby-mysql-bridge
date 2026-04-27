@@ -92,32 +92,33 @@ app.get('/get-asesores', async (req, res) => {
 
 // Endpoint para consultar catálogo de vehículos
 
+// Endpoint para consultar el catálogo de vehículos
 app.get('/consultar-catalogo', async (req, res) => {
-    
-    const modelo = req.query.modelo || req.query.modelo_vehiculo; 
-    
-    if (!modelo) {
-        return res.status(400).json({ 
-            error: "Falta el modelo",
-            instruccion: "Por favor, envía el parámetro 'modelo' en la URL" 
-        });
-    }
+    const modeloBusqueda = req.query.modelo || 'Dolphin';
+
+    console.log(`[Catalogo] Buscando: ${modeloBusqueda}`);
 
     try {
         
-        const [rows] = await db.query(
-            "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)", 
-            [`%${modelo}%`]
-        );
+        const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)";
+        const [rows] = await db.query(query, [`%${modeloBusqueda}%`]);
 
         if (rows.length > 0) {
+            console.log(`[Catalogo] Éxito: Se encontró ${rows[0].modelo}`);
             res.json(rows[0]);
         } else {
-            res.status(404).json({ error: "No se encontró el modelo " + modelo });
+            console.log(`[Catalogo] No encontrado: ${modeloBusqueda}`);
+            res.status(404).json({ 
+                error: "Modelo no encontrado", 
+                sugerencia: "Intenta con Dolphin, Yuan o Seal" 
+            });
         }
     } catch (error) {
-        console.error("Error en /consultar-catalogo:", error);
-        res.status(500).json({ error: "Error interno", detalle: error.message });
+        console.error("Detalle del error en catálogo:", error.message);
+        res.status(500).json({ 
+            error: "Error interno en la base de datos", 
+            detalle: error.message 
+        });
     }
 });
 
