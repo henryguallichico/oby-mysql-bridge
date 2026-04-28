@@ -181,7 +181,7 @@ app.get('/validar-horarios', async (req, res) => {
             let faltante = !fecha ? "el día" : "la sucursal (Guayaquil, Quito o Cuenca)";
             return res.json({ 
                 horarios_disponibles: [], 
-                mensaje: `Milton, para revisar la agenda necesito que me confirmes ${faltante}. 👌` 
+                mensaje: `Para revisar la agenda necesito que me confirmes ${faltante}. 👌` 
             });
         }
 
