@@ -93,30 +93,24 @@ app.get('/get-asesores', async (req, res) => {
 // Endpoint para consultar catálogo de vehículos
 
 app.get('/consultar-catalogo', async (req, res) => {
-    // 1. Limpieza total
-    let modelo = (req.query.modelo || '').trim();
+    const modeloRecibido = req.query.modelo;
 
-    // 2. Si viene de la prueba de Oby o está vacío, ponemos Song Plus por defecto
-    if (!modelo || modelo.includes("{") || modelo === 'modelo') {
-        modelo = 'Song Plus'; 
+    if (!modeloRecibido || modeloRecibido.includes("{")) {
+        return res.status(400).json({ 
+            error: "Falta el modelo", 
+            mensaje: "Debes enviar un modelo válido en la consulta." 
+        });
     }
 
-    console.log(`[Catalogo] Buscando: ${modelo}`);
-
     try {
-        // 3. Busqueda flexible (LIKE) para que encuentre "Song" aunque la IA mande "Song Plus"
+        
         const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?) LIMIT 1";
-        const [rows] = await db.query(query, [`%${modelo}%`]);
+        const [rows] = await db.query(query, [`%${modeloRecibido}%`]);
 
         if (rows.length > 0) {
             res.json(rows[0]);
         } else {
-            // 4. Si de verdad no existe, devolvemos un JSON informativo, NO un error 404
-            // Esto evita que la IA invente lo de "error de autenticación"
-            res.json({ 
-                error: "Modelo no encontrado", 
-                detalle: "No tengo la ficha técnica de este modelo específico aún." 
-            });
+            res.status(404).json({ error: "Modelo no encontrado en la base de datos" });
         }
     } catch (error) {
         res.status(500).json({ error: "Error de base de datos" });
