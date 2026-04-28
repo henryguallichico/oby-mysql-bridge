@@ -242,6 +242,79 @@ app.post('/confirmar-agendamiento', async (req, res) => {
         res.json({ success: false, mensaje: "No pude guardar la cita en el sistema, pero ya tomé nota de tus datos. 👌" });
     }
 });
+
+app.get('/consultar-cita-existente', async (req, res) => {
+    try {
+        const cedula = (req.query.cedula || '').trim();
+        
+        // Si no hay cédula aún, respondemos que no hay cita para continuar el flujo
+        if (!cedula) return res.status(200).json({ tiene_cita: false });
+
+        const [testDrive] = await db.query(
+            "SELECT * FROM citas_test_drive WHERE cedula = ? AND fecha >= CURDATE()", 
+            [cedula]
+        );
+
+        if (testDrive.length > 0) {
+            return res.status(200).json({ 
+                tiene_cita: true, 
+                mensaje: `Milton, ya registramos una cita con esta cédula para el ${testDrive[0].fecha} a las ${testDrive[0].hora} en ${testDrive[0].sucursal}.` 
+            });
+        }
+        
+        res.status(200).json({ tiene_cita: false });
+    } catch (e) {
+        // Fallback seguro para Oby
+        res.status(200).json({ tiene_cita: false });
+    }
+});
+
+// 1. VALIDAR SI YA TIENE TEST DRIVE
+app.get('/consultar-cita-existente', async (req, res) => {
+    try {
+        const telefono = (req.query.telefono || '').trim();
+        if (!telefono) return res.status(200).json({ tiene_cita: false });
+
+        const [testDrive] = await db.query(
+            "SELECT * FROM citas_test_drive WHERE telefono = ? AND fecha >= CURDATE()", 
+            [telefono]
+        );
+
+        if (testDrive.length > 0) {
+            return res.status(200).json({ 
+                tiene_cita: true, 
+                mensaje: `Ya tienes un Test Drive el ${testDrive[0].fecha} a las ${testDrive[0].hora}.` 
+            });
+        }
+        res.status(200).json({ tiene_cita: false });
+    } catch (e) {
+        res.status(200).json({ tiene_cita: false }); // Nunca 400/500
+    }
+});
+
+// 2. AGENDAR (TEST DRIVE O LLAMADA)
+app.post('/crear-cita', async (req, res) => {
+    try {
+        const { tipo, nombre, telefono, modelo, sucursal, fecha, hora, cedula } = req.body;
+
+        if (tipo === 'TD') {
+            await db.query(
+                "INSERT INTO citas_test_drive (nombre, telefono, modelo, sucursal, fecha, hora, cedula) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [nombre, telefono, modelo, sucursal, fecha, hora, cedula]
+            );
+        } else {
+            await db.query(
+                "INSERT INTO citas_llamadas (nombre, telefono, modelo, fecha, hora) VALUES (?, ?, ?, ?, ?)",
+                [nombre, telefono, modelo, fecha, hora]
+            );
+        }
+
+        res.status(200).json({ success: true, mensaje: "Cita guardada correctamente 👌" });
+    } catch (e) {
+        res.status(200).json({ success: false, mensaje: "Lo anoté, pero verifica en sistema." });
+    }
+});
+
 // Health Check para Railway
 app.get('/', (req, res) => res.send('Servidor BYD activo'));
 
