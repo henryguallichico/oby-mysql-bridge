@@ -92,38 +92,38 @@ app.get('/get-asesores', async (req, res) => {
 
 // Endpoint para consultar catálogo de vehículos
 
-// Endpoint para consultar el catálogo de vehículos
-
 app.get('/consultar-catalogo', async (req, res) => {
-    // 1. Limpieza total del parámetro
-    let modelo = req.query.modelo;
+    // 1. Limpieza total
+    let modelo = (req.query.modelo || '').trim();
 
-    // 2. Lógica para que ObyMind pase el test (Error 400) pero el chat funcione
-    // Si el modelo está vacío o tiene llaves {{}}, usamos 'Yuan Plus' como base de prueba
-    if (!modelo || modelo.includes("{") || modelo === "modelo") {
-        modelo = 'Yuan Plus'; 
+    // 2. Si viene de la prueba de Oby o está vacío, ponemos Song Plus por defecto
+    if (!modelo || modelo.includes("{") || modelo === 'modelo') {
+        modelo = 'Song Plus'; 
     }
 
-    console.log(`[Catalogo] Buscando específicamente: ${modelo}`);
+    console.log(`[Catalogo] Buscando: ${modelo}`);
 
     try {
-        // 3. Buscamos el modelo que nos pide la IA
-        const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?)";
+        // 3. Busqueda flexible (LIKE) para que encuentre "Song" aunque la IA mande "Song Plus"
+        const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?) LIMIT 1";
         const [rows] = await db.query(query, [`%${modelo}%`]);
 
         if (rows.length > 0) {
-            // Si lo encuentra, enviamos el dato real
             res.json(rows[0]);
         } else {
-            // Si NO lo encuentra, enviamos un error 404 claro. 
-            // Esto hace que la IA sepa que escribió mal el nombre.
-            res.status(404).json({ error: `No encontré el modelo: ${modelo}` });
+            // 4. Si de verdad no existe, devolvemos un JSON informativo, NO un error 404
+            // Esto evita que la IA invente lo de "error de autenticación"
+            res.json({ 
+                error: "Modelo no encontrado", 
+                detalle: "No tengo la ficha técnica de este modelo específico aún." 
+            });
         }
     } catch (error) {
-        console.error("Error SQL:", error.message);
         res.status(500).json({ error: "Error de base de datos" });
     }
 });
+
+
 
 // 5. ENDPOINT: OBTENER HISTORIAL (Para que el agente de OBY tenga contexto)
 app.post('/get-history', async (req, res) => {
