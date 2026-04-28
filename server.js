@@ -96,7 +96,11 @@ app.get('/consultar-catalogo', async (req, res) => {
     let modeloRecibido = req.query.modelo || '';
     
     // Limpieza de llaves de ObyMind
-    modeloRecibido = modeloRecibido.replace(/[{}]/g, '').trim();
+    modeloRecibido = modeloRecibido
+    .replace(/[{}]/g, '')
+    .replace(/modelo_cliente/gi, '')
+    .replace(/modelo/gi, '')
+    .trim();
 
     // LOG de monitoreo
     console.log(`Consulta recibida para el modelo: "${modeloRecibido}"`);
@@ -105,12 +109,14 @@ app.get('/consultar-catalogo', async (req, res) => {
     // Si el modelo está vacío o es el nombre de la variable, devolvemos un JSON de éxito
     if (!modeloRecibido || modeloRecibido === 'modelo_cliente' || modeloRecibido === 'modelo') {
         return res.status(200).json({
-            status: "conectado",
-            mensaje: "Esperando variable modelo_cliente para buscar en base de datos",
-            bateria: "Pendiente",
-            autonomia: "Pendiente",
-            potencia: "Pendiente"
-        });
+        modelo: "Demo",
+        precio: 0,
+        autonomia: "0 km",
+        potencia: "0 HP",
+        bateria: "0 kWh",
+        carga: "N/A",
+        tecnologia: "Demo"
+});
     }
 
     try {
