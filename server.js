@@ -93,33 +93,45 @@ app.get('/get-asesores', async (req, res) => {
 // Endpoint para consultar catálogo de vehículos
 
 app.get('/consultar-catalogo', async (req, res) => {
-    // Capturamos el modelo. Si ObyMind manda {{modelo_cliente}} sin procesar, 
-    // o llega vacío, usamos un fallback basado en lo que vimos en el n8n.
-    let modelo = req.query.modelo || '';
+    let modeloRecibido = req.query.modelo || '';
     
-    // Limpieza profunda de llaves que n8n/Oby a veces arrastran
-    modelo = modelo.replace(/[{}]/g, '').trim();
+    // Limpieza de caracteres que envía ObyMind
+    modeloRecibido = modeloRecibido.replace(/[{}]/g, '').trim();
 
-    // Si el parámetro está muerto, forzamos la búsqueda de Seagull (que es tu lead actual)
-    // Esto evita que la IA diga "asumo ventajas generales"
-    if (!modelo || modelo === 'modelo_cliente' || modelo === 'modelo') {
-        modelo = 'Seagull'; 
+    // LOG para depuración en Railway
+    console.log(`🔍 Buscando en DB el modelo: "${modeloRecibido}"`);
+
+    // Si el modelo viene vacío o es la palabra del placeholder, NO pongas un auto por defecto.
+    // Solo busca si hay un texto real.
+    if (!modeloRecibido || modeloRecibido === 'modelo_cliente') {
+        return res.status(400).json({ error: "Falta el nombre del modelo para consultar." });
     }
 
     try {
         const query = "SELECT * FROM vehiculos WHERE LOWER(modelo) LIKE LOWER(?) LIMIT 1";
-        const [rows] = await db.query(query, [`%${modelo}%`]);
+        const [rows] = await db.query(query, [`%${modeloRecibido}%`]);
 
         if (rows.length > 0) {
-            // Log para que veas en Railway qué está pasando
-            console.log(`✅ Datos enviados para: ${modelo}`);
-            res.json(rows[0]);
+            const v = rows[0];
+            // Mapeo exacto de tu tabla MySQL a nombres claros para la IA
+            const dataVehiculo = {
+                modelo: v.modelo,
+                precio: v.precio,
+                autonomia_ev: v.autonomia_ev + " km",
+                autonomia_total: v.autonomia_total + " km", // Para híbridos como el Song
+                bateria: v.capacidad_bateria + " kWh",
+                potencia: v.potencia_hp + " HP",
+                tecnologia: v.tecnologia_motor
+            };
+            
+            console.log(`✅ Datos encontrados para ${v.modelo}`);
+            res.json(dataVehiculo);
         } else {
-            res.status(404).json({ error: "Modelo no encontrado" });
+            res.status(404).json({ error: "No se encontró el modelo en la base de datos." });
         }
     } catch (error) {
-        console.error("❌ Error DB:", error);
-        res.status(500).json({ error: "Error de servidor" });
+        console.error("❌ Error en DB:", error);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
 });
 
