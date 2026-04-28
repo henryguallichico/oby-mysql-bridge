@@ -170,6 +170,65 @@ app.post('/get-history', async (req, res) => {
     }
 });
 
+app.get('/validar-horarios', async (req, res) => {
+    const { fecha, sucursal } = req.query; // Ejemplo: fecha=2026-05-12&sucursal=Guayaquil
+
+    if (!fecha || !sucursal) {
+        return res.status(400).json({ error: "Faltan datos de fecha o sucursal" });
+    }
+
+    // Bloques fijos de 2 horas
+    const bloquesConfig = ["09:00", "11:00", "13:00", "15:00"];
+
+    try {
+        // Consultamos qué horarios ya están ocupados ese día en esa sucursal
+        const [ocupados] = await db.query(
+            "SELECT hora FROM citas WHERE fecha = ? AND sucursal = ?", 
+            [fecha, sucursal]
+        );
+
+        const listaOcupados = ocupados.map(c => c.hora.substring(0, 5));
+        
+        // Filtramos los bloques que NO están en la lista de ocupados
+        const disponibles = bloquesConfig.filter(hora => !listaOcupados.includes(hora));
+
+        res.json({
+            fecha,
+            sucursal,
+            horarios_disponibles: disponibles,
+            mensaje: disponibles.length > 0 
+                ? `Horarios libres: ${disponibles.join(", ")}` 
+                : "Lo siento, no hay turnos disponibles para este día."
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error al consultar disponibilidad" });
+    }
+});
+
+app.post('/crear-cita', async (req, res) => {
+    const { nombre, telefono, modelo, sucursal, fecha, hora, cedula } = req.body;
+
+    if (!nombre || !fecha || !hora) {
+        return res.status(400).json({ error: "Datos incompletos para agendar" });
+    }
+
+    try {
+        const query = `
+            INSERT INTO citas (nombre, telefono, modelo, sucursal, fecha, hora, cedula, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmado')
+        `;
+        await db.query(query, [nombre, telefono, modelo, sucursal, fecha, hora, cedula]);
+
+        res.json({ 
+            success: true, 
+            mensaje: `Cita agendada para ${nombre} el ${fecha} a las ${hora} en ${sucursal}.` 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error al insertar la cita en la base de datos" });
+    }
+});
 // Health Check para Railway
 app.get('/', (req, res) => res.send('Servidor BYD activo'));
 
