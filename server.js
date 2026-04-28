@@ -95,16 +95,22 @@ app.get('/get-asesores', async (req, res) => {
 app.get('/consultar-catalogo', async (req, res) => {
     let modeloRecibido = req.query.modelo || '';
     
-    // Limpieza de caracteres que envía ObyMind
+    // Limpieza de llaves de ObyMind
     modeloRecibido = modeloRecibido.replace(/[{}]/g, '').trim();
 
-    // LOG para depuración en Railway
-    console.log(`🔍 Buscando en DB el modelo: "${modeloRecibido}"`);
+    // LOG de monitoreo
+    console.log(`Consulta recibida para el modelo: "${modeloRecibido}"`);
 
-    // Si el modelo viene vacío o es la palabra del placeholder, NO pongas un auto por defecto.
-    // Solo busca si hay un texto real.
-    if (!modeloRecibido || modeloRecibido === 'modelo_cliente') {
-        return res.status(400).json({ error: "Falta el nombre del modelo para consultar." });
+    // RESPUESTA POSITIVA PARA CONFIGURACIÓN (Evita el Error 400)
+    // Si el modelo está vacío o es el nombre de la variable, devolvemos un JSON de éxito
+    if (!modeloRecibido || modeloRecibido === 'modelo_cliente' || modeloRecibido === 'modelo') {
+        return res.status(200).json({
+            status: "conectado",
+            mensaje: "Esperando variable modelo_cliente para buscar en base de datos",
+            bateria: "Pendiente",
+            autonomia: "Pendiente",
+            potencia: "Pendiente"
+        });
     }
 
     try {
@@ -113,21 +119,25 @@ app.get('/consultar-catalogo', async (req, res) => {
 
         if (rows.length > 0) {
             const v = rows[0];
-            // Mapeo exacto de tu tabla MySQL a nombres claros para la IA
+            // Mapeo exacto según tus columnas de MySQL
             const dataVehiculo = {
                 modelo: v.modelo,
-                precio: v.precio,
-                autonomia_ev: v.autonomia_ev + " km",
-                autonomia_total: v.autonomia_total + " km", // Para híbridos como el Song
-                bateria: v.capacidad_bateria + " kWh",
-                potencia: v.potencia_hp + " HP",
-                tecnologia: v.tecnologia_motor
+                precio: v.precio_desde,
+                autonomia: v.autonomia_km + " km",
+                potencia: v.hp + " HP",
+                bateria: v.bateria_kwh + " kWh",
+                carga: v.tiempo_carga,
+                tecnologia: v.destacados // O la columna que prefieras para motor
             };
             
             console.log(`✅ Datos encontrados para ${v.modelo}`);
             res.json(dataVehiculo);
         } else {
-            res.status(404).json({ error: "No se encontró el modelo en la base de datos." });
+            // Si el modelo no existe, enviamos 200 pero avisamos que no hay datos
+            res.status(200).json({ 
+                error: "Modelo no registrado",
+                mensaje: "Verifica que el nombre coincida con la base de datos" 
+            });
         }
     } catch (error) {
         console.error("❌ Error en DB:", error);
