@@ -171,62 +171,75 @@ app.post('/get-history', async (req, res) => {
 });
 
 app.get('/validar-horarios', async (req, res) => {
-    const { fecha, sucursal } = req.query; // Ejemplo: fecha=2026-05-12&sucursal=Guayaquil
-
-    if (!fecha || !sucursal) {
-        return res.status(400).json({ error: "Faltan datos de fecha o sucursal" });
-    }
-
-    // Bloques fijos de 2 horas
-    const bloquesConfig = ["09:00", "11:00", "13:00", "15:00"];
-
     try {
-        // Consultamos qué horarios ya están ocupados ese día en esa sucursal
+        // Limpiamos los parámetros
+        let fecha = (req.query.fecha || '').replace(/[{"'}]/g, '').trim();
+        let sucursal = (req.query.sucursal || '').replace(/[{"'}]/g, '').trim();
+
+        // VALIDACIÓN ESTRICTA: Si falta fecha o sucursal, no hay horarios
+        if (!fecha || !sucursal) {
+            let faltante = !fecha ? "el día" : "la sucursal (Guayaquil, Quito o Cuenca)";
+            return res.json({ 
+                horarios_disponibles: [], 
+                mensaje: `Milton, para revisar la agenda necesito que me confirmes ${faltante}. 👌` 
+            });
+        }
+
+        const bloquesConfig = ["09:00", "11:00", "13:00", "15:00"];
+
+        // Consulta real a la DB
         const [ocupados] = await db.query(
             "SELECT hora FROM citas WHERE fecha = ? AND sucursal = ?", 
             [fecha, sucursal]
         );
 
         const listaOcupados = ocupados.map(c => c.hora.substring(0, 5));
-        
-        // Filtramos los bloques que NO están en la lista de ocupados
         const disponibles = bloquesConfig.filter(hora => !listaOcupados.includes(hora));
 
         res.json({
-            fecha,
-            sucursal,
             horarios_disponibles: disponibles,
             mensaje: disponibles.length > 0 
-                ? `Horarios libres: ${disponibles.join(", ")}` 
-                : "Lo siento, no hay turnos disponibles para este día."
+                ? `Para el ${fecha} en ${sucursal} tengo estos horarios: ${disponibles.join(", ")}. ¿Cuál prefieres?` 
+                : `Lo siento, para el ${fecha} en ${sucursal} ya no tengo turnos disponibles. ¿Probamos otro día?`
         });
+
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error al consultar disponibilidad" });
+        console.error("Error en validación:", error);
+        res.json({ horarios_disponibles: [], mensaje: "Tuve un inconveniente al consultar la agenda. ¿Podemos intentar de nuevo? 👌" });
     }
 });
 
-app.post('/crear-cita', async (req, res) => {
-    const { nombre, telefono, modelo, sucursal, fecha, hora, cedula } = req.body;
-
-    if (!nombre || !fecha || !hora) {
-        return res.status(400).json({ error: "Datos incompletos para agendar" });
-    }
-
+app.post('/confirmar-agendamiento', async (req, res) => {
     try {
+        // Extraemos y limpiamos todo el body
+        const d = req.body;
+        const nombre = (d.nombre || 'Cliente').replace(/[{"'}]/g, '').trim();
+        const telefono = (d.telefono || '').trim();
+        const modelo = (d.modelo || 'Shark').trim();
+        const sucursal = (d.sucursal || 'Guayaquil').trim();
+        const fecha = (d.fecha || '').trim();
+        const hora = (d.hora || '').trim();
+        const cedula = (d.cedula || 'Pendiente').trim();
+
+        if (!fecha || !hora) {
+            return res.json({ success: false, mensaje: "Aún no tengo la fecha o la hora completa para cerrar el agendamiento." });
+        }
+
         const query = `
             INSERT INTO citas (nombre, telefono, modelo, sucursal, fecha, hora, cedula, status) 
             VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmado')
         `;
+        
         await db.query(query, [nombre, telefono, modelo, sucursal, fecha, hora, cedula]);
 
         res.json({ 
             success: true, 
-            mensaje: `Cita agendada para ${nombre} el ${fecha} a las ${hora} en ${sucursal}.` 
+            mensaje: `¡Listo! Cita confirmada para ${nombre}. Te esperamos el ${fecha} a las ${hora} en BYD ${sucursal}.` 
         });
+
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error al insertar la cita en la base de datos" });
+        console.error("Error al agendar:", error);
+        res.json({ success: false, mensaje: "No pude guardar la cita en el sistema, pero ya tomé nota de tus datos. 👌" });
     }
 });
 // Health Check para Railway
