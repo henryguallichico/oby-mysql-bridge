@@ -293,10 +293,13 @@ app.get('/consultar-cita-existente', async (req, res) => {
 });
 
 // 2. AGENDAR (TEST DRIVE O LLAMADA)
-app.post('/crear-cita', async (req, res) => {
-    try {
-        const { tipo, nombre, telefono, modelo, sucursal, fecha, hora, cedula } = req.body;
 
+app.post('/crear-cita', async (req, res) => {
+    const { tipo, nombre, telefono, modelo, sucursal, fecha, hora, cedula } = req.body;
+    const hora_de_cita = `${fecha} ${hora}`; // Formato: 2026-04-06 15:00:00
+
+    try {
+        // 1. Insertar la cita según el tipo
         if (tipo === 'TD') {
             await db.query(
                 "INSERT INTO citas_test_drive (nombre, telefono, modelo, sucursal, fecha, hora, cedula) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -309,9 +312,21 @@ app.post('/crear-cita', async (req, res) => {
             );
         }
 
-        res.status(200).json({ success: true, mensaje: "Cita guardada correctamente 👌" });
-    } catch (e) {
-        res.status(200).json({ success: false, mensaje: "Lo anoté, pero verifica en sistema." });
+        // 2. ACTUALIZAR LA TABLA DE LEADS AUTOMÁTICAMENTE
+        const updateQuery = `
+            UPDATE leads 
+            SET bot_stage = 'Cita Asesor', 
+                dealstage = 'Cita Asesor', 
+                estado = 'agendado', 
+                hora_de_cita = ? 
+            WHERE telefono = ?`;
+        
+        await db.query(updateQuery, [hora_de_cita, telefono]);
+
+        res.status(200).json({ success: true, mensaje: "Cita y Lead actualizados correctamente" });
+    } catch (error) {
+        console.error(error);
+        res.status(200).json({ success: false, mensaje: "Error al procesar el registro" });
     }
 });
 
